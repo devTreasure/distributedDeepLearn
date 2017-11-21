@@ -1,0 +1,84 @@
+Server0:
+	'''The first server
+	Deals with reading images, pre-processing and the first convolutional layer and pooling layer
+	Input image for this layer should have a size of 224x224x3
+	Output has a size of 56x56x64
+	'''
+
+	# tensorflow variables	
+	Input: 224 X 224 X 3 (processed image)
+	weights: 7 X 7 X 3 X 64 (weight vector) # weights are updated 
+	biases: 64 (bias vector) # biases are updated
+
+	#PseudoCode:
+	
+	# forward net thread
+	for img in ReadImage():
+		img = PreProcessImage(img)
+		conv_relu = ForwardPassFirstNode(img, weights, biases, [1,2,2,1]) # stride 2 
+		z = tf.nn.max_pool(conv_relu, ksize=[1,3,3,1], strides = [1,2,2,1], padding='SAME') # 3x3 max pool, stride 2
+		SendToNextServer(z, batchID) # pass this to next server to let it calculate
+        SendToFinalServer(label, batchID) # send the labels to the final server 
+
+	# backpropagation net thread
+	for batchID, z_prime in GetFromNextServer():
+        updateWeights(batchID, z_prime)
+
+    # controller thread
+
+middle Server (type):
+	'''
+	There are 6 types of middle servers, each with different architecture
+	type 1: receive 56x56x64, send 56x56x64
+	type 2: receive 56x56x64, maxpool, send 28x28x128
+	type 3: receive 28x28x128, send 28x28x128
+	type 4: receive 28x28x128, maxpool, send 14x14x256
+	type 5: receive 14x14x256, send 14x14x256
+	type 6: receive 14x14x256, maxpool, send 7x7x512
+	When system starts, each type of 2, 4 and 6 has to have at least one machine
+	
+	These layers also have shortcut structures
+	'''
+	# weights (2 weights)
+	
+	
+	# forward net thread
+	for batchID, x in ReceivedFromPrevLayer():
+        z = ForwardPassMiddleNode(x)
+        SendToNextServer(z, batchID, label)
+	
+	# backpropagation net thread
+	for batchID, z_prime in GetFromNextServer():
+        updateWeights(batchID, z_prime)
+    
+    # controller thread
+    
+    
+ServerN:
+    '''
+    The last server, responsible for handling the fully-connected layer
+    Receive 7x7x512, global average pool, produce 1x512 vector
+    1x512 Vector goes into softmax to produce labels (number of classes)
+    '''
+    # net thread
+    for batchID, x in ReceivedFromPrevLayer():
+        x_prime = GlobalAveragePool(x)
+        prob = softMax(x_prime)
+        loss = crossEntropy(prob, actualLabel)
+        x_updated = partialDeriv(loss)
+        sendToPrevServer(x_updated)
+
+    # controller thread
+
+Controller:
+	'''
+	Controller should be only responsible for checking how many servers each type has.
+	The 
+	'''
+
+
+# functions pseudo code
+def ForwardPassFirstNode(img, weights, biases, strides):	
+	conv = tf.nn.conv2d(img, weights, strides = strides, padding='SAME')
+	conv_relu = tf.nn.relu(conv + biases)
+	return conv_relu
